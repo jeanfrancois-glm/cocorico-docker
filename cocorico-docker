@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+_VERSION="2017.11"
+
+_usage(){
+    echo -e "\e[33mUsage:\e[39m ./cocorico-docker [COMMAND]\n"
+    echo -e "\e[33mCommands:\e[39m"
+    echo -e " \e[32minstall\e[39m\tInstall the cocorico project via git clone"
+    echo -e " \e[32mstart\e[39m\t\tStart the docker composition"
+    echo -e " \e[32mstop\e[39m\t\tStop the docker composition"
+    echo -e " \e[32mclean\e[39m\t\tDelete exited docker containers and untagged docker images"
+    echo -e " \e[32mbash\e[39m\t\tOpen a terminal in a docker container"
+}
+
+_version(){
+    echo -e "${_VERSION}"
+}
+
+_require() {
+    if ! [ -x "$(command -v "$1")" ]; then
+        echo -e "\e[31mThe program $1 is not installed.\e[39m"
+        exit
+    fi
+}
+
+_install(){
+    _require git
+
+    if [[ $1 && $1 == "--help" ]]; then
+        echo -e "\e[33mUsage:\e[39m ./cocorico-docker install ([GIT_REPOSITORY_URL])\n"
+        echo -e "\e[33mInformation:\e[39m The git repository is the Cocorico Community Edition by default."
+        exit
+    fi
+
+    if [ -d "cocorico" ]; then
+        echo -e "\e[31mThe cocorico project is already installed.\e[39m"
+        exit
+    fi
+
+    if [ $1 ]; then
+        git clone $1 cocorico
+        exit
+    fi
+
+    git clone https://github.com/Cocolabs-SAS/cocorico.git
+}
+
+_docker_start(){
+    _require docker
+    _require docker-compose
+
+    if [ ! -f "docker-compose.yml" ]; then
+        if [[ ${OSTYPE//[0-9.-]*/} == "msys" ]]; then
+            cp docker-compose-win.yml.dist docker-compose.yml
+        else
+            cp docker-compose.yml.dist docker-compose.yml
+        fi
+    fi
+
+    if [ ! -d "cocorico" ]; then
+        echo -e "\e[31mThe cocorico project is not installed.\e[39m"
+        exit
+    fi
+
+    _docker_stop
+
+    docker-compose build
+
+    if [[ ${OSTYPE//[0-9.-]*/} == "msys" ]]; then
+        docker volume create --name=mongo
+        docker run -d -p 27017:27017 -v mongo:/data/db:cached --name=mongo mongo:3.4
+    fi
+
+    if [[ $1 && $1 == "-d" ]]; then
+        docker-compose up -d
+        exit
+    fi
+
+    docker-compose up
+}
+
+_docker_stop(){
+    _require docker
+
+    docker kill $(docker ps -q) &> /dev/null
+
+    docker rm $(docker ps -aq) &> /dev/null
+}
+
+_docker_clean(){
+    _require docker
+
+    docker rm -f $(docker ps -aq -f status=exited) &> /dev/null
+
+    docker rmi -f $(docker images | grep "^<none>" | awk "{print \$3}") &> /dev/null
+}
+
+_docker_bash(){
+    _require docker
+
+    if [[ $1 && $1 == "--help" ]]; then
+        echo -e "\e[33mUsage:\e[39m ./cocorico-docker bash ([USER]@)[CONTAINER] \n"
+        echo -e "\e[33mInformation:\e[39m The user is root by default."
+        exit
+    fi
+
+    _dir="${PWD##*/}"
+    _dir="$(tr [A-Z] [a-z] <<< "$_dir")"
+    _dir="$(tr -d "-" <<< "$_dir")"
+
+    _container=$1
+    _user=root
+    _tmp=(${_container//@/ })
+    if [ ${_tmp[1]} ]; then
+        _container=${_tmp[1]}
+        _user=${_tmp[0]}
+    fi
+
+    docker exec -ti --user ${_user} ${_dir}_${_container}_1 bash
+}
+
+case $1 in
+    install) _install $2 ;;
+    start) _docker_start ;;
+    stop) _docker_stop ;;
+    clean) _docker_clean ;;
+    bash) _docker_bash $2 ;;
+    --version) _version ;;
+    -v) _version ;;
+    *) _usage ;;
+esac

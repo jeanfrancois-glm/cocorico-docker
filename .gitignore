@@ -1,0 +1,8 @@
+/.idea
+/cocorico
+/cocorico-ee
+/cocorico-os
+/mongo
+/mysql
+/elasticsearch
+docker-compose.yml

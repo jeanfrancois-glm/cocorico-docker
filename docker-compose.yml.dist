@@ -1,0 +1,55 @@
+    version: '3'
+    services:
+        nginx:
+            build: docker/nginx
+            ports:
+                - 80:80
+            volumes:
+                - ./cocorico:/var/www/html
+
+        mongo:
+            build: docker/mongo
+            ports:
+                - 27017:27017
+            volumes:
+                - ./mongo:/data/db
+
+        mysql:
+            build: docker/mysql
+            ports:
+                - 3306:3306
+            environment:
+                MYSQL_ROOT_PASSWORD: root
+                MYSQL_DATABASE: cocorico_dev
+                MYSQL_USER: cocorico_dev
+                MYSQL_PASSWORD: cocorico_dev
+            volumes:
+                - ./mysql:/var/lib/mysql
+
+        php-cli:
+            build: docker/php-cli
+            hostname: php-cli
+            environment:
+                - SSH_AUTH_SOCK=/ssh-agent
+            volumes:
+                - $SSH_AUTH_SOCK:/ssh-agent
+                - ./cocorico:/var/www/html
+            working_dir: /var/www/html
+
+        php-fpm:
+            build: docker/php-fpm
+            volumes:
+                - ./cocorico:/var/www/html
+
+
+        phpmyadmin:
+            image: phpmyadmin/phpmyadmin
+            ports:
+                - "8080:80"
+            links:
+                - mysql
+            environment:
+                MYSQL_USERNAME: root
+                MYSQL_ROOT_PASSWORD: root
+                PMA_HOST: mysql
+                PMA_PORT: 3306
